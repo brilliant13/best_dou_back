@@ -16,7 +16,8 @@ public class FriendsMapper {
                 friends.getMemos(),
                 friends.getTones(),
                 friends.getMember().getId(), // Member의 ID를 직접 설정
-                friends.getRelationType()
+                friends.getRelationType(),
+                friends.getGroupName()
         );
     }
 
@@ -30,7 +31,8 @@ public class FriendsMapper {
                 friendsDto.getMemos(),
                 friendsDto.getTones(),
                 member, // Member 엔티티를 직접 설정
-                friendsDto.getRelationType()
+                friendsDto.getRelationType(),
+                friendsDto.getGroupName()
         );
     }
 }

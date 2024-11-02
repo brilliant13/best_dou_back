@@ -41,6 +41,14 @@ public class MessageController {
         return ResponseEntity.ok(messages);
     }
 
+    // 추가된 부분: 특정 멤버와 친구 간의 메시지를 가져오는 메서드
+    @GetMapping("/member/{memberId}/friend/{friendId}")
+    public ResponseEntity<List<MessageDto>> getMessagesByMemberIdAndFriendId(
+            @PathVariable("memberId") Long memberId,
+            @PathVariable("friendId") Long friendId) {
+        List<MessageDto> messages = messageService.getMessagesByMemberIdAndFriendsId(memberId, friendId);
+        return ResponseEntity.ok(messages);
+    }
     @DeleteMapping("{id}")
     public ResponseEntity<String> deleteMessage(@PathVariable("id") Long messageId) {
         messageService.deleteMessage(messageId);

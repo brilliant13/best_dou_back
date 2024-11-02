@@ -63,4 +63,13 @@ public class MessageServiceImpl implements MessageService {
     public void deleteMessage(Long messageId) {
         messageRepository.deleteById(messageId);
     }
+
+    // memberId와 friendsId를 동시에 조회하는 메서드 구현
+    @Override
+    public List<MessageDto> getMessagesByMemberIdAndFriendsId(Long memberId, Long friendsId) {
+        List<Message> messages = messageRepository.findByMemberIdAndFriendsId(memberId, friendsId);
+        return messages.stream()
+                .map(MessageMapper::mapToMessageDto) // Message를 MessageDto로 변환
+                .collect(Collectors.toList());
+    }
 }
