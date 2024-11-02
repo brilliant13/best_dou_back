@@ -10,4 +10,7 @@ import java.util.List;
 public interface MessageRepository extends JpaRepository<Message, Long> {
     List<Message> findByMemberId(Long memberId);
     List<Message> findByFriendsId(Long friendsId);
+
+    // memberId와 friendsId로 조회하는 메서드 추가
+    List<Message> findByMemberIdAndFriendsId(Long memberId, Long friendsId);
 }

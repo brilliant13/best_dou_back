@@ -48,4 +48,5 @@ public class FriendsController {
         friendsService.deleteFriend(friendId);
         return ResponseEntity.ok("Friend deleted successfully.");
     }
+
 }

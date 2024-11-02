@@ -25,11 +25,11 @@ public class Friends {
     @Column(nullable = false)
     private String friendPhone;
 
-    @ElementCollection
-    private List<String> tags = new ArrayList<>(); // 태그 리스트
+    @Column
+    private String tags; // 태그 문자열
 
-    @ElementCollection
-    private List<String> memos = new ArrayList<>(); // 메모 리스트
+    @Column
+    private String memos; // 메모 문자열
 
     @ElementCollection
     @Enumerated(EnumType.STRING)
@@ -42,5 +42,8 @@ public class Friends {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private RelationType relationType; // 관계 유형 (친구, 선배, 부모님 등)
+
+    @Column(nullable = false)
+    private String groupName; // 그룹명
 
 }

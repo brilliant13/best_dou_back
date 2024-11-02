@@ -10,4 +10,7 @@ public interface MessageService {
     List<MessageDto> getMessagesByMemberId(Long memberId);
     List<MessageDto> getMessagesByFriendId(Long friendId);
     void deleteMessage(Long messageId);
+
+    // 새로운 메서드: memberId와 friendsId로 동시에 조회
+    List<MessageDto> getMessagesByMemberIdAndFriendsId(Long memberId, Long friendsId);
 }
