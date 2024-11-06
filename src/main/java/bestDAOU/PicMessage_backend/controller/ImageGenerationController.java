@@ -18,10 +18,10 @@ import org.springframework.web.client.RestTemplate;
 
 @RestController
 @RequestMapping("/api/images")
-@CrossOrigin(origins = "http://localhost:3000") // React 앱의 URL을 명시
+@CrossOrigin("*") // React 앱의 URL을 명시
 public class ImageGenerationController {
 
-    @Value("${openai.api.key}")
+    @Value("${gpt.api.key}")
     private String openAiApiKey;
 
     @PostMapping("/generate")
