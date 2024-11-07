@@ -16,15 +16,9 @@ public class PpurioController {
     @Autowired
     private final RequestService requestService;
 
-    // 문자 발송 요청 (메시지와 수신자 정보 외부 입력)
+    // 문자 발송 요청
     @PostMapping("/send")
     public Map<String, Object> sendMessage() {
         return requestService.requestSend();
-    }
-
-    // 예약 취소 요청
-    @PostMapping("/cancel")
-    public Map<String, Object> cancelMessage() {
-        return requestService.requestCancel();
     }
 }
