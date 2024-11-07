@@ -20,30 +20,17 @@ public class RequestService {
     private String PpurioAiApiKey;
 
     private static final Integer TIME_OUT = 5000;
-    private String API_KEY = PpurioAiApiKey;
     private static final String PPURIO_ACCOUNT = "jjww6367";
-    private static final String FROM = "01076826007";
+    private static final String FROM = "01092014486";
     private static final String FILE_PATH = "src/main/resources/static/animal.jpg";
     private static final String URI = "https://message.ppurio.com";
 
     public Map<String, Object> requestSend() {
-        String basicAuthorization = Base64.getEncoder().encodeToString((PPURIO_ACCOUNT + ":" + API_KEY).getBytes());
-
+        String basicAuthorization = Base64.getEncoder().encodeToString((PPURIO_ACCOUNT + ":" + PpurioAiApiKey).getBytes());
         Map<String, Object> tokenResponse = getToken(URI, basicAuthorization); // 토큰 발급
-        Map<String, Object> sendResponse = send(URI, (String) tokenResponse.get("token")); // 발송 요청
-
+        Map<String ,Object> sendResponse = send(URI, (String) tokenResponse.get("token")); // 발송 요청
         return sendResponse;
     }
-
-    public Map<String, Object> requestCancel() {
-        String basicAuthorization = Base64.getEncoder().encodeToString((PPURIO_ACCOUNT + ":" + API_KEY).getBytes());
-
-        Map<String, Object> tokenResponse = getToken(URI, basicAuthorization); // 토큰 발급
-        Map<String, Object> cancelResponse = cancel(URI, (String) tokenResponse.get("token")); // 예약 취소 요청
-
-        return cancelResponse;
-    }
-
 
     /**
      * Access Token 발급 요청 (한 번 발급된 토큰은 24시간 유효합니다.)
@@ -56,6 +43,7 @@ public class RequestService {
         try {
             Request request = new Request(baseUri + "/v1/token", "Basic " + BasicAuthorization);
             conn = createConnection(request);
+            System.out.println("conn = " + conn);
             return getResponseBody(conn);
         } catch (IOException e) {
             throw new RuntimeException("API 요청과 응답 실패", e);
@@ -76,7 +64,7 @@ public class RequestService {
         HttpURLConnection conn = null;
         try {
             String bearerAuthorization = String.format("%s %s", "Bearer", accessToken);
-            //String bearerAuthorization = String.format("Bearer %s", accessToken);
+            System.out.println("bearerAuthorization = " + bearerAuthorization);
             Request httpRequest = new Request(baseUri + "/v1/message", bearerAuthorization);
             conn = createConnection(httpRequest, createSendTestParams()); // request 객체를 이용
             return getResponseBody(conn);
@@ -89,29 +77,6 @@ public class RequestService {
         }
     }
 
-
-    /**
-     * 예약발송 취소 요청
-     * @param baseUri 요청 URI ex) https://message.ppurio.com
-     * @param accessToken 토큰 발급 API를 통해 발급 받은 Access Token
-     * @return Map
-     */
-    private Map<String, Object> cancel(String baseUri, String accessToken) {
-        HttpURLConnection conn = null;
-        try {
-            String token = String.format("%s %s", "Bearer", accessToken);
-            //String token = String.format("Bearer %s", accessToken);
-            Request request = new Request(baseUri + "/v1/cancel", token);
-            conn = createConnection(request, createCancelTestParams());
-            return getResponseBody(conn);
-        } catch (IOException e) {
-            throw new RuntimeException("API 요청과 응답 실패", e);
-        } finally {
-            if (conn != null) {
-                conn.disconnect();
-            }
-        }
-    }
 
     private <T> HttpURLConnection createConnection(Request request, T requestObject) throws IOException {
         ObjectMapper objectMapper = new ObjectMapper();
@@ -170,23 +135,36 @@ public class RequestService {
 
     private Map<String, Object> createSendTestParams() throws IOException {
         HashMap<String, Object> params = new HashMap<>();
+
         params.put("account", PPURIO_ACCOUNT);
-        params.put("messageType", "SMS");
+        params.put("messageType", "MMS");
+        params.put("content", "다민이는 꼭 생긴 게 강아지똥!!! ");
         params.put("from", FROM);
-        params.put("content", "[*이름*], hello this is [*1*]");
-        params.put("duplicateFlag", "Y");
-        params.put("rejectType", "AD");
+        params.put("duplicateFlag", "N");
         params.put("targetCount", 1);
-        params.put("targets", List.of(
-                Map.of("to", "01076826007",
-                        "name", "tester",
-                        "changeWord", Map.of(
-                                "var1", "ppurio api world"))
-        ));
         params.put("files", List.of(
                 createFileTestParams(FILE_PATH)
         ));
-        params.put("refKey", RandomStringUtils.random(32, true, true));
+        params.put("targets", List.of(
+                Map.of(
+                        "to", "01076826007",
+                        "name", "안예찬",
+                        "changeWord", Map.of(
+                                "var1", "치환변수1",
+                                "var2", "치환변수2",
+                                "var3", "치환변수3",
+                                "var4", "치환변수4",
+                                "var5", "치환변수5",
+                                "var6", "치환변수6",
+                                "var7", "치환변수7"
+                        )
+                )
+        ));
+
+        params.put("refKey", RandomStringUtils.random(32, true, true));  // refKey 설정
+        params.put("rejectType", "AD");
+        params.put("subject", "제목");  // subject 필드 추가
+
         return params;
     }
 
@@ -212,15 +190,6 @@ public class RequestService {
             params.put("data", encodedFileData);
             return params;
         }
-    }
-
-
-
-    private Map<String, Object> createCancelTestParams() {
-        HashMap<String, Object> params = new HashMap<>();
-        params.put("account", PPURIO_ACCOUNT);
-            params.put("messageKey", "230413110135117SMS029914servsUBn");
-        return params;
     }
 }
 
