@@ -1,4 +1,4 @@
-package bestDAOU.PicMessage_backend.controller;
+package com.example.imagegeneration.controller;
 
 import org.springframework.web.bind.annotation.*;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,6 +33,7 @@ public class ImageGenerationController {
     public ResponseEntity<Map<String, String>> generateImage(@RequestBody Map<String, String> requestData) {
         // 요청 데이터에서 카테고리 정보 추출
         String style = requestData.get("style");
+        String keyword = requestData.get("keyword");
         String subject = requestData.get("subject");
         String emotion = requestData.get("emotion");
         String background = requestData.get("background");
@@ -40,15 +41,17 @@ public class ImageGenerationController {
 
         // DALL-E 3 프롬프트 생성
         String prompt = String.format(
-            "Please draw an image that fits the following [conditions].\n"
+            "Please draw an image that fits the following [conditions] and Image must not display text, labels, people, or characters.\n"
                 + "\n"
                 + "[conditions]\n"
-                + "- Draw it in an realistic style.\n"
-                + "- Please create the image for Apartment.\n"
-                + "- No text, labels, or any written characters should appear in the image.\n"
-                + "- Set the overall color to the color for Apartment\n"
-                + "- Set the atmosphere to 'happy' and reflect it in the image",
-            style, emotion, background, message
+                + "- Draw it in an %s style.\n"
+
+                + "- Please create the image for %s.\n"
+                + "- Set the background to the %s\n"
+                //+ "- Express your image through a big object\n"
+                + "- Set the overall color to the color for %s\n"
+                + "- Set the atmosphere to %s and reflect it in the image\n",
+            style, keyword, background, keyword, emotion
         );
 
         System.out.println(prompt);
