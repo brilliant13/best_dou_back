@@ -1,4 +1,4 @@
-package com.example.imagegeneration.controller;
+package bestDAOU.PicMessage_backend.controller;
 
 import org.springframework.web.bind.annotation.*;
 import org.springframework.beans.factory.annotation.Value;
