@@ -33,6 +33,7 @@ public class ImageGenerationController {
     public ResponseEntity<Map<String, String>> generateImage(@RequestBody Map<String, String> requestData) {
         // 요청 데이터에서 카테고리 정보 추출
         String style = requestData.get("style");
+        String keyword = requestData.get("style");
         String subject = requestData.get("subject");
         String emotion = requestData.get("emotion");
         String background = requestData.get("background");
@@ -43,12 +44,12 @@ public class ImageGenerationController {
             "Please draw an image that fits the following [conditions].\n"
                 + "\n"
                 + "[conditions]\n"
-                + "- Draw it in an realistic style.\n"
-                + "- Please create the image for Apartment.\n"
+                + "- Draw it in an %s style.\n"
+                + "- Please create the image for '%s'.\n"
                 + "- No text, labels, or any written characters should appear in the image.\n"
-                + "- Set the overall color to the color for Apartment\n"
-                + "- Set the atmosphere to 'happy' and reflect it in the image",
-            style, emotion, background, message
+                + "- Set the overall color to the color for '%s'\n"
+                + "- Set the atmosphere to '%s' and reflect it in the image",
+            style, keyword, keyword, emotion
         );
 
         System.out.println(prompt);
