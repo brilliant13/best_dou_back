@@ -1,27 +1,32 @@
 package bestDAOU.PicMessage_backend.controller;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
+
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/images")
-@CrossOrigin("*") // React 앱의 URL을 명시
+@CrossOrigin(origins = "http://localhost:3000") // React 앱의 URL을 명시
 public class ImageGenerationController {
 
-    @Value("${gpt.api.key}")
+    @Value("${openai.api.key}")
     private String openAiApiKey;
 
     @PostMapping("/generate")
@@ -32,23 +37,21 @@ public class ImageGenerationController {
         String emotion = requestData.get("emotion");
         String background = requestData.get("background");
         String message = requestData.get("message");
-        String focus = "Birthday";
-        String mood = "evoking a joyous mood in a party setting";
 
         // DALL-E 3 프롬프트 생성
         String prompt = String.format(
-            "Please draw a picture that meets the following [conditions].\n"
+            "Please draw an image that fits the following [conditions].\n"
                 + "\n"
-                + "1. There shouldn't be any text in the image.\n"
-                + "2. A %s style illustration for a %s purpose, conveying a %s atmosphere in a %s background setting. Absolutely no text, letters, words, or characters anywhere in the picture.",
-            style,
-            subject,
-            emotion,
-            background
+                + "[conditions]\n"
+                + "- Draw it in an realistic style.\n"
+                + "- Please create the image for Apartment.\n"
+                + "- No text, labels, or any written characters should appear in the image.\n"
+                + "- Set the overall color to the color for Apartment\n"
+                + "- Set the atmosphere to 'happy' and reflect it in the image",
+            style, emotion, background, message
         );
 
-        System.out.println("프롬프트 내용 = " + prompt);
-
+        System.out.println(prompt);
 
         // 헤더 설정
         HttpHeaders headers = new HttpHeaders();
@@ -57,17 +60,18 @@ public class ImageGenerationController {
 
         // 요청 페이로드 설정
         Map<String, Object> payload = new HashMap<>();
-        //prompt = "Create an Illustration based on the message: 'Congratulations! Let's celebrate this special day together!' and 'Focusing on Birthday and 'evoking a joyous mood in a party setting.'\n";
+        payload.put("model", "dall-e-3"); // DALL-E 3 모델 지정
         payload.put("prompt", prompt);
         payload.put("n", 1);
-        payload.put("size", "256x256");
+        payload.put("size", "1024x1024");
+        payload.put("quality", "standard");
 
         // HttpEntity 객체 생성
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
 
         // RestTemplate을 사용하여 OpenAI API 호출
         RestTemplate restTemplate = new RestTemplate();
-        String apiUrl = "https://api.openai.com/v1/images/generations"; // DALL-E의 최신 모델을 호출하는 엔드포인트
+        String apiUrl = "https://api.openai.com/v1/images/generations"; // OpenAI DALL-E 3 API 엔드포인트
 
         try {
             ResponseEntity<Map> response = restTemplate.exchange(apiUrl, HttpMethod.POST, entity, Map.class);
@@ -76,11 +80,23 @@ public class ImageGenerationController {
                 // 응답에서 이미지 URL 추출
                 String imageUrl = (String) ((Map<String, Object>) ((List<Object>) response.getBody().get("data")).get(0)).get("url");
 
-                // 성공적으로 생성된 경우 성공 메시지와 URL 반환
+                // 이미지 URL에서 이미지 다운로드
+                byte[] imageBytes = downloadImage(imageUrl);
+
+                // 이미지 크기 조절
+                byte[] resizedImageBytes = resizeImage(imageBytes, 300, 300);
+                System.out.println("이미지 사이즈 변경");
+
+                // Base64로 변환
+                String base64Image = Base64.getEncoder().encodeToString(resizedImageBytes);
+                System.out.println("Base64로 변환");
+
+                // 성공적으로 생성된 경우 성공 메시지와 Base64 반환
                 Map<String, String> responseData = new HashMap<>();
                 responseData.put("status", "success");
                 responseData.put("message", "이미지가 성공적으로 생성되었습니다.");
-                responseData.put("imageUrl", imageUrl);
+                responseData.put("imageBase64", base64Image);
+                System.out.println("이미지 생성 완료");
                 return ResponseEntity.ok(responseData);
             } else {
                 // 실패한 경우 실패 메시지 반환
@@ -97,5 +113,34 @@ public class ImageGenerationController {
             responseData.put("message", "이미지 생성 중 오류가 발생했습니다: " + e.getMessage());
             return ResponseEntity.status(500).body(responseData);
         }
+    }
+
+    private byte[] downloadImage(String imageUrl) throws Exception {
+        URL url = new URL(imageUrl);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod("GET");
+        System.out.println("이미지 다운로드");
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(connection.getInputStream().readAllBytes())) {
+            return inputStream.readAllBytes();
+        }
+    }
+
+    private byte[] resizeImage(byte[] originalImageBytes, int targetWidth, int targetHeight) throws Exception {
+        // InputStream으로 변환
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(originalImageBytes);
+        BufferedImage originalImage = ImageIO.read(inputStream);
+
+        // 새로운 크기의 BufferedImage 생성
+        BufferedImage resizedImage = new BufferedImage(targetWidth, targetHeight, originalImage.getType());
+        Graphics2D g = resizedImage.createGraphics();
+        g.drawImage(originalImage, 0, 0, targetWidth, targetHeight, null);
+        g.dispose();
+
+        // 다시 ByteArrayOutputStream으로 변환
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        ImageIO.write(resizedImage, "png", outputStream);
+
+        return outputStream.toByteArray();
     }
 }
