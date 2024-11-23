@@ -25,11 +25,17 @@ public class RequestService {
     private static final String FILE_PATH = "src/main/resources/static/animal.jpg";
     private static final String URI = "https://message.ppurio.com";
 
-    public Map<String, Object> requestSend() {
+    public List<Map<String, Object>> requestSend(List<SendMessageRequest> messages) {
         String basicAuthorization = Base64.getEncoder().encodeToString((PPURIO_ACCOUNT + ":" + PpurioAiApiKey).getBytes());
         Map<String, Object> tokenResponse = getToken(URI, basicAuthorization); // 토큰 발급
-        Map<String ,Object> sendResponse = send(URI, (String) tokenResponse.get("token")); // 발송 요청
-        return sendResponse;
+        String token = (String) tokenResponse.get("token");
+
+        List<Map<String, Object>> responses = new ArrayList<>();
+        for (SendMessageRequest message : messages) {
+            Map<String, Object> sendResponse = send(URI, token, message.getRecipientPhoneNumber(), message.getMessageContent()); // 발송 요청
+            responses.add(sendResponse);
+        }
+        return responses;
     }
 
     /**
@@ -43,7 +49,6 @@ public class RequestService {
         try {
             Request request = new Request(baseUri + "/v1/token", "Basic " + BasicAuthorization);
             conn = createConnection(request);
-            System.out.println("conn = " + conn);
             return getResponseBody(conn);
         } catch (IOException e) {
             throw new RuntimeException("API 요청과 응답 실패", e);
@@ -58,15 +63,16 @@ public class RequestService {
      * 문자 발송 요청
      * @param baseUri 요청 URI ex) https://message.ppurio.com
      * @param accessToken 토큰 발급 API를 통해 발급 받은 Access Token
+     * @param recipientPhoneNumber 수신자 전화번호
+     * @param messageContent 문자 내용
      * @return Map
      */
-    private Map<String, Object> send(String baseUri, String accessToken) {
+    private Map<String, Object> send(String baseUri, String accessToken, String recipientPhoneNumber, String messageContent) {
         HttpURLConnection conn = null;
         try {
             String bearerAuthorization = String.format("%s %s", "Bearer", accessToken);
-            System.out.println("bearerAuthorization = " + bearerAuthorization);
             Request httpRequest = new Request(baseUri + "/v1/message", bearerAuthorization);
-            conn = createConnection(httpRequest, createSendTestParams()); // request 객체를 이용
+            conn = createConnection(httpRequest, createSendParams(recipientPhoneNumber, messageContent)); // request 객체를 이용
             return getResponseBody(conn);
         } catch (IOException e) {
             throw new RuntimeException("API 요청과 응답 실패", e);
@@ -76,7 +82,6 @@ public class RequestService {
             }
         }
     }
-
 
     private <T> HttpURLConnection createConnection(Request request, T requestObject) throws IOException {
         ObjectMapper objectMapper = new ObjectMapper();
@@ -132,13 +137,12 @@ public class RequestService {
         }
     }
 
-
-    private Map<String, Object> createSendTestParams() throws IOException {
+    private Map<String, Object> createSendParams(String recipientPhoneNumber, String messageContent) throws IOException {
         HashMap<String, Object> params = new HashMap<>();
 
         params.put("account", PPURIO_ACCOUNT);
         params.put("messageType", "MMS");
-        params.put("content", "다민이는 꼭 생긴 게 강아지똥!!! ");
+        params.put("content", messageContent);
         params.put("from", FROM);
         params.put("duplicateFlag", "N");
         params.put("targetCount", 1);
@@ -147,8 +151,8 @@ public class RequestService {
         ));
         params.put("targets", List.of(
                 Map.of(
-                        "to", "01076826007",
-                        "name", "안예찬",
+                        "to", recipientPhoneNumber,
+                        "name", "수신자",
                         "changeWord", Map.of(
                                 "var1", "치환변수1",
                                 "var2", "치환변수2",
@@ -189,6 +193,29 @@ public class RequestService {
             params.put("name", file.getName());
             params.put("data", encodedFileData);
             return params;
+        }
+    }
+
+    // 메시지 요청 데이터를 담기 위한 DTO 클래스
+    public static class SendMessageRequest {
+        private String recipientPhoneNumber;
+        private String messageContent;
+
+        // Getter와 Setter
+        public String getRecipientPhoneNumber() {
+            return recipientPhoneNumber;
+        }
+
+        public void setRecipientPhoneNumber(String recipientPhoneNumber) {
+            this.recipientPhoneNumber = recipientPhoneNumber;
+        }
+
+        public String getMessageContent() {
+            return messageContent;
+        }
+
+        public void setMessageContent(String messageContent) {
+            this.messageContent = messageContent;
         }
     }
 }
