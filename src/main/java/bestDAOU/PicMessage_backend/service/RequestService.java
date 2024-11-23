@@ -12,6 +12,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class RequestService {
@@ -22,34 +23,39 @@ public class RequestService {
     private static final Integer TIME_OUT = 5000;
     private static final String PPURIO_ACCOUNT = "jjww6367";
     private static final String FROM = "01092014486";
-    private static final String FILE_PATH = "src/main/resources/static/animal.jpg";
     private static final String URI = "https://message.ppurio.com";
 
     public List<Map<String, Object>> requestSend(List<SendMessageRequest> messages) {
         String basicAuthorization = Base64.getEncoder().encodeToString((PPURIO_ACCOUNT + ":" + PpurioAiApiKey).getBytes());
-        Map<String, Object> tokenResponse = getToken(URI, basicAuthorization); // 토큰 발급
+        Map<String, Object> tokenResponse = getToken(URI, basicAuthorization);
         String token = (String) tokenResponse.get("token");
 
         List<Map<String, Object>> responses = new ArrayList<>();
         for (SendMessageRequest message : messages) {
-            Map<String, Object> sendResponse = send(URI, token, message.getRecipientPhoneNumber(), message.getMessageContent()); // 발송 요청
-            responses.add(sendResponse);
+            try {
+                Map<String, Object> sendResponse = send(URI, token, message.getRecipientPhoneNumber(), message.getMessageContent());
+                responses.add(sendResponse);
+            } catch (RuntimeException e) {
+                System.err.println("Error sending message to: " + message.getRecipientPhoneNumber());
+                e.printStackTrace();
+                throw e;
+            }
         }
         return responses;
     }
 
-    /**
-     * Access Token 발급 요청 (한 번 발급된 토큰은 24시간 유효합니다.)
-     * @param baseUri 요청 URI ex) https://message.ppurio.com
-     * @param BasicAuthorization "계정:연동 개발 인증키"를 Base64 인코딩한 문자열
-     * @return Map
-     */
     private Map<String, Object> getToken(String baseUri, String BasicAuthorization) {
         HttpURLConnection conn = null;
         try {
             Request request = new Request(baseUri + "/v1/token", "Basic " + BasicAuthorization);
             conn = createConnection(request);
-            return getResponseBody(conn);
+            Map<String, Object> tokenResponse = getResponseBody(conn);
+            System.out.println("Token Response: " + tokenResponse);
+
+            if (!tokenResponse.containsKey("token")) {
+                throw new RuntimeException("Token not found in response: " + tokenResponse);
+            }
+            return tokenResponse;
         } catch (IOException e) {
             throw new RuntimeException("API 요청과 응답 실패", e);
         } finally {
@@ -59,20 +65,12 @@ public class RequestService {
         }
     }
 
-    /**
-     * 문자 발송 요청
-     * @param baseUri 요청 URI ex) https://message.ppurio.com
-     * @param accessToken 토큰 발급 API를 통해 발급 받은 Access Token
-     * @param recipientPhoneNumber 수신자 전화번호
-     * @param messageContent 문자 내용
-     * @return Map
-     */
     private Map<String, Object> send(String baseUri, String accessToken, String recipientPhoneNumber, String messageContent) {
         HttpURLConnection conn = null;
         try {
-            String bearerAuthorization = String.format("%s %s", "Bearer", accessToken);
+            String bearerAuthorization = String.format("Bearer %s", accessToken);
             Request httpRequest = new Request(baseUri + "/v1/message", bearerAuthorization);
-            conn = createConnection(httpRequest, createSendParams(recipientPhoneNumber, messageContent)); // request 객체를 이용
+            conn = createConnection(httpRequest, createSendParams(recipientPhoneNumber, messageContent));
             return getResponseBody(conn);
         } catch (IOException e) {
             throw new RuntimeException("API 요청과 응답 실패", e);
@@ -104,6 +102,8 @@ public class RequestService {
         conn.setRequestProperty("Authorization", request.getAuthorization());
         conn.setConnectTimeout(TIME_OUT);
         conn.setReadTimeout(TIME_OUT);
+        System.out.println("Request URI: " + request.getRequestUri());
+        System.out.println("Authorization: " + request.getAuthorization());
         return conn;
     }
 
@@ -111,7 +111,15 @@ public class RequestService {
         InputStream inputStream;
         try {
             int responseCode = conn.getResponseCode();
+            System.out.println("Response Code: " + responseCode);
             inputStream = (responseCode == 200) ? conn.getInputStream() : conn.getErrorStream();
+
+            if (responseCode != 200) {
+                String errorResponse = new BufferedReader(new InputStreamReader(inputStream))
+                        .lines().collect(Collectors.joining("\n"));
+                System.err.println("Error Response: " + errorResponse);
+                throw new RuntimeException("API Error: " + errorResponse);
+            }
         } catch (IOException e) {
             throw new RuntimeException("API 응답 코드 확인 실패", e);
         }
@@ -137,71 +145,93 @@ public class RequestService {
         }
     }
 
-    private Map<String, Object> createSendParams(String recipientPhoneNumber, String messageContent) throws IOException {
-        HashMap<String, Object> params = new HashMap<>();
-
+    private Map<String, Object> createSendParams(String recipientPhoneNumber, String messageContent) {
+        Map<String, Object> params = new HashMap<>();
         params.put("account", PPURIO_ACCOUNT);
         params.put("messageType", "MMS");
         params.put("content", messageContent);
         params.put("from", FROM);
-        params.put("duplicateFlag", "N");
-        params.put("targetCount", 1);
-        params.put("files", List.of(
-                createFileTestParams(FILE_PATH)
-        ));
-        params.put("targets", List.of(
-                Map.of(
-                        "to", recipientPhoneNumber,
-                        "name", "수신자",
-                        "changeWord", Map.of(
-                                "var1", "치환변수1",
-                                "var2", "치환변수2",
-                                "var3", "치환변수3",
-                                "var4", "치환변수4",
-                                "var5", "치환변수5",
-                                "var6", "치환변수6",
-                                "var7", "치환변수7"
-                        )
-                )
-        ));
-
-        params.put("refKey", RandomStringUtils.random(32, true, true));  // refKey 설정
+        params.put("targets", List.of(Map.of("to", recipientPhoneNumber, "name", "수신자")));
+        params.put("refKey", RandomStringUtils.random(32, true, true));
         params.put("rejectType", "AD");
-        params.put("subject", "제목");  // subject 필드 추가
-
+        params.put("subject", "제목");
         return params;
     }
 
-    private Map<String, Object> createFileTestParams(String filePath) throws IOException {
-        File file = new File(filePath);
+    public List<Map<String, Object>> requestSendWithImage(List<SendMessageRequest> messages) {
+        String basicAuthorization = Base64.getEncoder().encodeToString((PPURIO_ACCOUNT + ":" + PpurioAiApiKey).getBytes());
+        Map<String, Object> tokenResponse = getToken(URI, basicAuthorization);
+        String token = (String) tokenResponse.get("token");
 
-        if (!file.exists() || !file.isFile()) {
-            throw new FileNotFoundException("파일이 존재하지 않거나 유효하지 않습니다: " + filePath);
-        }
-
-        try (FileInputStream fileInputStream = new FileInputStream(file)) {
-            byte[] fileBytes = new byte[(int) file.length()];
-            int readBytes = fileInputStream.read(fileBytes);
-
-            if (readBytes != file.length()) {
-                throw new IOException("파일을 완전히 읽지 못했습니다.");
+        List<Map<String, Object>> responses = new ArrayList<>();
+        for (SendMessageRequest message : messages) {
+            try {
+                Map<String, Object> sendResponse = sendWithImage(URI, token, message.getRecipientPhoneNumber(), message.getMessageContent(), message.getImageBase64());
+                responses.add(sendResponse);
+            } catch (RuntimeException e) {
+                System.err.println("Error sending message with image to: " + message.getRecipientPhoneNumber());
+                e.printStackTrace();
+                throw e;
             }
+        }
+        return responses;
+    }
 
-            String encodedFileData = Base64.getEncoder().encodeToString(fileBytes);
-            Map<String, Object> params = new HashMap<>();
-            params.put("size", file.length());
-            params.put("name", file.getName());
-            params.put("data", encodedFileData);
-            return params;
+    private Map<String, Object> sendWithImage(String baseUri, String accessToken, String recipientPhoneNumber, String messageContent, String imageBase64) {
+        HttpURLConnection conn = null;
+        try {
+            String bearerAuthorization = String.format("Bearer %s", accessToken);
+            Request httpRequest = new Request(baseUri + "/v1/message", bearerAuthorization);
+            conn = createConnection(httpRequest, createSendParamsWithImage(recipientPhoneNumber, messageContent, imageBase64));
+            return getResponseBody(conn);
+        } catch (IOException e) {
+            throw new RuntimeException("API 요청과 응답 실패", e);
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
         }
     }
 
-    // 메시지 요청 데이터를 담기 위한 DTO 클래스
+    private Map<String, Object> createSendParamsWithImage(String recipientPhoneNumber, String messageContent, String imageBase64) {
+        int originalSize = (int) Math.ceil((imageBase64.length() * 3) / 4.0);
+        if (imageBase64.endsWith("==")) {
+            originalSize -= 2;
+        } else if (imageBase64.endsWith("=")) {
+            originalSize -= 1;
+        }
+
+        List<Map<String, Object>> targets = List.of(
+                Map.of("to", recipientPhoneNumber, "name", "수신자")
+        );
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("account", PPURIO_ACCOUNT);
+        params.put("messageType", "MMS");
+        params.put("content", messageContent);
+        params.put("from", FROM);
+        params.put("files", List.of(Map.of(
+                "size", originalSize,
+                "name", "image.jpg",
+                "data", imageBase64
+        )));
+        params.put("targets", targets);
+        params.put("targetCount", targets.size());
+        params.put("refKey", RandomStringUtils.random(32, true, true));
+        params.put("rejectType", "AD");
+        params.put("duplicateFlag", "y");
+        params.put("subject", "이미지 메시지");
+        return params;
+    }
+
+
+
+
     public static class SendMessageRequest {
         private String recipientPhoneNumber;
         private String messageContent;
+        private String imageBase64;
 
-        // Getter와 Setter
         public String getRecipientPhoneNumber() {
             return recipientPhoneNumber;
         }
@@ -216,6 +246,14 @@ public class RequestService {
 
         public void setMessageContent(String messageContent) {
             this.messageContent = messageContent;
+        }
+
+        public String getImageBase64() {
+            return imageBase64;
+        }
+
+        public void setImageBase64(String imageBase64) {
+            this.imageBase64 = imageBase64;
         }
     }
 }
