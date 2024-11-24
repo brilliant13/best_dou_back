@@ -25,25 +25,6 @@ public class RequestService {
     private static final String FROM = "01092014486";
     private static final String URI = "https://message.ppurio.com";
 
-    public List<Map<String, Object>> requestSend(List<SendMessageRequest> messages) {
-        String basicAuthorization = Base64.getEncoder().encodeToString((PPURIO_ACCOUNT + ":" + PpurioAiApiKey).getBytes());
-        Map<String, Object> tokenResponse = getToken(URI, basicAuthorization);
-        String token = (String) tokenResponse.get("token");
-
-        List<Map<String, Object>> responses = new ArrayList<>();
-        for (SendMessageRequest message : messages) {
-            try {
-                Map<String, Object> sendResponse = send(URI, token, message.getRecipientPhoneNumber(), message.getMessageContent());
-                responses.add(sendResponse);
-            } catch (RuntimeException e) {
-                System.err.println("Error sending message to: " + message.getRecipientPhoneNumber());
-                e.printStackTrace();
-                throw e;
-            }
-        }
-        return responses;
-    }
-
     private Map<String, Object> getToken(String baseUri, String BasicAuthorization) {
         HttpURLConnection conn = null;
         try {
@@ -64,23 +45,6 @@ public class RequestService {
             }
         }
     }
-
-    private Map<String, Object> send(String baseUri, String accessToken, String recipientPhoneNumber, String messageContent) {
-        HttpURLConnection conn = null;
-        try {
-            String bearerAuthorization = String.format("Bearer %s", accessToken);
-            Request httpRequest = new Request(baseUri + "/v1/message", bearerAuthorization);
-            conn = createConnection(httpRequest, createSendParams(recipientPhoneNumber, messageContent));
-            return getResponseBody(conn);
-        } catch (IOException e) {
-            throw new RuntimeException("API 요청과 응답 실패", e);
-        } finally {
-            if (conn != null) {
-                conn.disconnect();
-            }
-        }
-    }
-
     private <T> HttpURLConnection createConnection(Request request, T requestObject) throws IOException {
         ObjectMapper objectMapper = new ObjectMapper();
         String jsonInputString = objectMapper.writeValueAsString(requestObject);
@@ -145,19 +109,6 @@ public class RequestService {
         }
     }
 
-    private Map<String, Object> createSendParams(String recipientPhoneNumber, String messageContent) {
-        Map<String, Object> params = new HashMap<>();
-        params.put("account", PPURIO_ACCOUNT);
-        params.put("messageType", "MMS");
-        params.put("content", messageContent);
-        params.put("from", FROM);
-        params.put("targets", List.of(Map.of("to", recipientPhoneNumber, "name", "수신자")));
-        params.put("refKey", RandomStringUtils.random(32, true, true));
-        params.put("rejectType", "AD");
-        params.put("subject", "제목");
-        return params;
-    }
-
     public List<Map<String, Object>> requestSendWithImage(List<SendMessageRequest> messages) {
         String basicAuthorization = Base64.getEncoder().encodeToString((PPURIO_ACCOUNT + ":" + PpurioAiApiKey).getBytes());
         Map<String, Object> tokenResponse = getToken(URI, basicAuthorization);
@@ -166,15 +117,54 @@ public class RequestService {
         List<Map<String, Object>> responses = new ArrayList<>();
         for (SendMessageRequest message : messages) {
             try {
-                Map<String, Object> sendResponse = sendWithImage(URI, token, message.getRecipientPhoneNumber(), message.getMessageContent(), message.getImageBase64());
+                Map<String, Object> sendResponse;
+                if (message.getImageBase64() == null || message.getImageBase64().isEmpty()) {
+                    // 이미지가 없는 경우 문자만 전송
+                    sendResponse = send(URI, token, message.getRecipientPhoneNumber(), message.getMessageContent());
+                } else {
+                    // 이미지가 있는 경우 MMS 전송
+                    sendResponse = sendWithImage(URI, token, message.getRecipientPhoneNumber(), message.getMessageContent(), message.getImageBase64());
+                }
                 responses.add(sendResponse);
             } catch (RuntimeException e) {
-                System.err.println("Error sending message with image to: " + message.getRecipientPhoneNumber());
+                System.err.println("Error sending message to: " + message.getRecipientPhoneNumber());
                 e.printStackTrace();
                 throw e;
             }
         }
         return responses;
+    }
+
+    private Map<String, Object> send(String baseUri, String accessToken, String recipientPhoneNumber, String messageContent) {
+        HttpURLConnection conn = null;
+        try {
+            String bearerAuthorization = String.format("Bearer %s", accessToken);
+            Request httpRequest = new Request(baseUri + "/v1/message", bearerAuthorization);
+            conn = createConnection(httpRequest, createSendParams(recipientPhoneNumber, messageContent));
+            return getResponseBody(conn);
+        } catch (IOException e) {
+            throw new RuntimeException("API 요청과 응답 실패", e);
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
+    }
+
+    // 이미지 없이 전송 LMS
+    private Map<String, Object> createSendParams(String recipientPhoneNumber, String messageContent) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("account", PPURIO_ACCOUNT);
+        params.put("messageType", "LMS"); // 이미지 없이 전송이므로 LMS로 설정
+        params.put("content", messageContent);
+        params.put("from", FROM);
+        params.put("targets", List.of(Map.of("to", recipientPhoneNumber, "name", "수신자")));
+        params.put("refKey", RandomStringUtils.random(32, true, true));
+        params.put("rejectType", "AD");
+        params.put("duplicateFlag", "y");
+        params.put("subject", "문자 메시지");
+        params.put("targetCount", 1); // 대상 수는 1로 설정
+        return params;
     }
 
     private Map<String, Object> sendWithImage(String baseUri, String accessToken, String recipientPhoneNumber, String messageContent, String imageBase64) {
@@ -193,6 +183,7 @@ public class RequestService {
         }
     }
 
+    // 이미지 포함 전송
     private Map<String, Object> createSendParamsWithImage(String recipientPhoneNumber, String messageContent, String imageBase64) {
         int originalSize = (int) Math.ceil((imageBase64.length() * 3) / 4.0);
         if (imageBase64.endsWith("==")) {
@@ -224,9 +215,6 @@ public class RequestService {
         return params;
     }
 
-
-
-
     public static class SendMessageRequest {
         private String recipientPhoneNumber;
         private String messageContent;
@@ -244,16 +232,8 @@ public class RequestService {
             return messageContent;
         }
 
-        public void setMessageContent(String messageContent) {
-            this.messageContent = messageContent;
-        }
-
         public String getImageBase64() {
             return imageBase64;
-        }
-
-        public void setImageBase64(String imageBase64) {
-            this.imageBase64 = imageBase64;
         }
     }
 }
