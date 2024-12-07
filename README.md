@@ -39,7 +39,7 @@ git clone https://github.com/your-repo/your-project.git
 cd your-project
 ```
 ### 2. 환경 변수 설정
-`.env` 파일을 생성하고 아래 내용을 추가합니다:
+`application.properties` 파일에 아래 내용을 추가합니다:
 ```
 spring.application.name=PicMessage-backend
 spring.jpa.hibernate.ddl-auto=update
